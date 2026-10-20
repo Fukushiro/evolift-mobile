@@ -15,16 +15,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LogoutButton } from '@/components/logout-button';
+import { exercicios } from '@/constants/exercicios';
 import {
   createWorkout,
   getWorkout,
-  listExercises,
   updateWorkout,
-  type Exercise,
   type Workout,
-} from '@/services/auth-service';
-import { useAppSelector } from '@/store/hooks';
+  type WorkoutInput,
+} from '@/services/workout-storage';
 
 type WorkoutFormScreenProps = {
   workoutId?: string;
@@ -57,9 +55,8 @@ function normalizeExerciseSearch(value: string) {
 }
 
 export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
-  const { isRestoring, session } = useAppSelector((state) => state.auth);
   const [name, setName] = useState('');
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const exercises = exercicios;
   const [selections, setSelections] = useState<Selection[]>([
     { key: 'exercise-0', exerciseId: '', sets: '3', repetitions: '10' },
   ]);
@@ -76,17 +73,10 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
   });
 
   const loadForm = useCallback(async () => {
-    if (!session || session.user.role === 'ADMIN') {
-      return;
-    }
     setError('');
     setIsLoading(true);
     try {
-      const [availableExercises, workout] = await Promise.all([
-        listExercises(session),
-        workoutId ? getWorkout(session, workoutId) : Promise.resolve(null),
-      ]);
-      setExercises(availableExercises);
+      const workout = workoutId ? await getWorkout(workoutId) : null;
       if (workout) {
         setName(workout.nome);
         setSelections(
@@ -100,23 +90,12 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [session, workoutId]);
+  }, [workoutId]);
 
   useEffect(() => {
-    if (!isRestoring && !session) {
-      router.replace('/login');
-    }
-    if (session?.user.role === 'ADMIN') {
-      router.replace('/');
-    }
-  }, [isRestoring, session]);
-
-  useEffect(() => {
-    if (session) {
-      const frame = requestAnimationFrame(() => void loadForm());
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [loadForm, session]);
+    const frame = requestAnimationFrame(() => void loadForm());
+    return () => cancelAnimationFrame(frame);
+  }, [loadForm]);
 
   function updateSelection(index: number, field: keyof Selection, value: string) {
     setSelections((current) =>
@@ -153,9 +132,6 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
   }
 
   async function submit() {
-    if (!session) {
-      return;
-    }
     setError('');
     const workoutExercises = selections.map((selection, index) => ({
       exercicioId: Number(selection.exerciseId),
@@ -180,23 +156,17 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
       setError('Preencha o nome e selecione um exercício com séries e execuções válidas em cada item.');
       return;
     }
-    if (session.user.appUserId === null) {
-      setError('Não foi possível identificar seu usuário. Saia e entre novamente para salvar um treino.');
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const input = {
+      const input: WorkoutInput = {
         nome: name.trim(),
-        appUserId: session.user.appUserId,
         exercicios: workoutExercises,
       };
       if (workoutId) {
-        await updateWorkout(session, workoutId, input);
+        await updateWorkout(workoutId, input);
         router.replace({ pathname: '/treinos/[id]', params: { id: workoutId } });
       } else {
-        await createWorkout(session, input);
+        await createWorkout(input);
         router.replace('/');
       }
     } catch (submitError) {
@@ -215,7 +185,6 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
               <Text style={styles.backText}>‹</Text>
             </Pressable>
             <Text style={styles.headerTitle}>evolift</Text>
-            <LogoutButton />
           </View>
           <Text style={styles.eyebrow}>PLANEJAMENTO</Text>
           <Text style={styles.title}>{isEditing ? 'Editar treino' : 'Novo treino'}</Text>
@@ -225,9 +194,7 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
               : 'Escolha os exercícios e defina séries e execuções para cada um.'}
           </Text>
 
-          {isRestoring || !session || session.user.role === 'ADMIN' ? (
-            <ActivityIndicator color="#659a3c" size="large" style={styles.loader} />
-          ) : isLoading ? (
+          {isLoading ? (
             <ActivityIndicator color="#659a3c" size="large" style={styles.loader} />
           ) : (
             <View style={styles.formCard}>
@@ -263,7 +230,7 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
 
               {exercises.length === 0 ? (
                 <View style={styles.noticeCard}>
-                  <Text style={styles.noticeText}>Nenhum exercício disponível no catálogo. Peça a um administrador para cadastrar exercícios.</Text>
+                  <Text style={styles.noticeText}>Nenhum exercício está disponível no catálogo local.</Text>
                   <Pressable onPress={() => void loadForm()}>
                     <Text style={styles.retryText}>Atualizar lista</Text>
                   </Pressable>

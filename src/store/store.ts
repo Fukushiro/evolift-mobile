@@ -1,11 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 
-import authReducer from './auth-slice';
 import workoutProgressReducer from './workout-progress-slice';
 
 export const store = configureStore({
   reducer: {
-    auth: authReducer,
     workoutProgress: workoutProgressReducer,
   },
 });

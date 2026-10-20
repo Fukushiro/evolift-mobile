@@ -12,43 +12,24 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LogoutButton } from '@/components/logout-button';
-import { ApiError } from '@/services/api';
-import { getWorkout, type Workout, type WorkoutExercise } from '@/services/auth-service';
-import { persistSession } from '@/components/redux-provider';
-import { clearSession } from '@/store/auth-slice';
+import { getWorkout, type Workout, type WorkoutExercise } from '@/services/workout-storage';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   changeCompletedSets,
   clearWorkoutCompletedSets,
 } from '@/store/workout-progress-slice';
 
-function getExerciseIdentity(exercise: WorkoutExercise, index: number): string {
-  return String(
-    exercise.exercicioId ??
-      exercise.exercicio?.id ??
-      exercise.exercicio?.nome ??
-      exercise.nome ??
-      `exercicio-${index}`,
-  );
-}
-
-function getLegacyExerciseKey(exercise: WorkoutExercise, index: number): string {
-  return String(
-    exercise.exercicioId ??
-      exercise.exercicio?.id ??
-      `${exercise.posicao ?? index}-${exercise.exercicio?.nome ?? exercise.nome ?? 'exercicio'}`,
-  );
+function getExerciseIdentity(exercise: WorkoutExercise): string {
+  return String(exercise.exercicioId);
 }
 
 function getExerciseKey(exercise: WorkoutExercise, index: number): string {
-  return `${getExerciseIdentity(exercise, index)}::${exercise.posicao ?? index}::${index}`;
+  return `${getExerciseIdentity(exercise)}::${exercise.posicao}::${index}`;
 }
 
 export default function WorkoutDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const dispatch = useAppDispatch();
-  const { isRestoring, session } = useAppSelector((state) => state.auth);
   const workoutProgress = useAppSelector((state) => state.workoutProgress);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,47 +40,35 @@ export default function WorkoutDetailsScreen() {
   const accumulatedRestMs = useRef(0);
   const restStartedAt = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!isRestoring && !session) {
-      router.replace('/login');
-    }
-  }, [isRestoring, session]);
-
   const loadWorkout = useCallback(async () => {
-    if (!session || !id) {
+    if (!id) {
       return;
     }
     setIsLoading(true);
     setError('');
     try {
-      setWorkout(await getWorkout(session, id));
+      setWorkout(await getWorkout(id));
     } catch (loadError) {
-      if (loadError instanceof ApiError && loadError.status === 401) {
-        await persistSession(null);
-        dispatch(clearSession());
-        router.replace('/login');
-      } else {
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Não foi possível carregar este treino.',
-        );
-      }
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : 'Não foi possível carregar este treino.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [dispatch, id, session]);
+  }, [id]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!session || !id) {
+      if (!id) {
         return undefined;
       }
       const frame = requestAnimationFrame(() => {
         void loadWorkout();
       });
       return () => cancelAnimationFrame(frame);
-    }, [id, loadWorkout, session]),
+    }, [id, loadWorkout]),
   );
 
   useEffect(() => {
@@ -150,7 +119,7 @@ export default function WorkoutDetailsScreen() {
     }
   }
 
-  if (isRestoring || workoutProgress.isRestoring || !session) {
+  if (workoutProgress.isRestoring) {
     return (
       <View style={styles.loadingScreen}>
         <ActivityIndicator color="#659a3c" size="large" />
@@ -158,14 +127,9 @@ export default function WorkoutDetailsScreen() {
     );
   }
 
-  const workoutKey = `${session.user.username.toLowerCase()}::${id}`;
+  const workoutKey = `local::${id}`;
   const completedSets = workoutProgress.completedByWorkout[workoutKey] ?? {};
   const exercises = workout?.exercicios ?? [];
-  const exerciseOccurrences = exercises.reduce<Record<string, number>>((counts, exercise, index) => {
-    const identity = getExerciseIdentity(exercise, index);
-    counts[identity] = (counts[identity] ?? 0) + 1;
-    return counts;
-  }, {});
   const hasCompletedSets = Object.values(completedSets).some((count) => count > 0);
 
   return (
@@ -179,7 +143,6 @@ export default function WorkoutDetailsScreen() {
             <View style={styles.brandMark}><Text style={styles.brandLetter}>E</Text></View>
             <Text style={styles.brandName}>evolift</Text>
           </View>
-          <LogoutButton />
         </View>
 
         {isLoading ? (
@@ -265,14 +228,9 @@ export default function WorkoutDetailsScreen() {
               exercises.map((exercise, index) => {
                 const exerciseKey = getExerciseKey(exercise, index);
                 const totalSets = Math.max(0, Math.floor(exercise.quantidadeSeries ?? 0));
-                const identity = getExerciseIdentity(exercise, index);
-                const legacyCompletedSets =
-                  exerciseOccurrences[identity] === 1
-                    ? completedSets[getLegacyExerciseKey(exercise, index)]
-                    : undefined;
-                const finishedSets = completedSets[exerciseKey] ?? legacyCompletedSets ?? 0;
-                const name = exercise.exercicio?.nome ?? exercise.nome ?? 'Exercício';
-                const videoUrl = exercise.exercicio?.videoUrl ?? exercise.videoUrl;
+                const finishedSets = completedSets[exerciseKey] ?? 0;
+                const name = exercise.exercicio.nome;
+                const videoUrl = exercise.exercicio?.video;
 
                 return (
                   <View key={`${exerciseKey}-${index}`} style={styles.exerciseCard}>
