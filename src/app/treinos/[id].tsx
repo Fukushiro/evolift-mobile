@@ -179,7 +179,11 @@ export default function WorkoutDetailsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backButton}>
+          <Pressable
+            onPress={() => router.replace('/')}
+            hitSlop={8}
+            style={styles.backButton}
+          >
             <Text style={styles.backText}>‹</Text>
           </Pressable>
           <View style={styles.brand}>

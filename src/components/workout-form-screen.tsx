@@ -191,7 +191,16 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Pressable
+              onPress={() => {
+                if (isEditing) {
+                  router.replace({ pathname: '/treinos/[id]', params: { id: workoutId ?? '' } });
+                  return;
+                }
+                router.replace('/');
+              }}
+              style={styles.backButton}
+            >
               <Text style={styles.backText}>‹</Text>
             </Pressable>
             <Text style={styles.headerTitle}>evolift</Text>
