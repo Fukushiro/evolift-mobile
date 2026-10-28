@@ -7,17 +7,22 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listWorkouts, type Workout } from '@/services/workout-storage';
+import { importWorkoutFromCode, listWorkouts, type Workout } from '@/services/workout-storage';
 
 export default function HomeScreen() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [workoutCode, setWorkoutCode] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importStatus, setImportStatus] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
   const loadWorkouts = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -47,6 +52,31 @@ export default function HomeScreen() {
       return () => cancelAnimationFrame(frame);
     }, [loadWorkouts]),
   );
+
+  async function importWorkout() {
+    setImportError('');
+    setImportStatus('');
+    if (!workoutCode.trim()) {
+      setImportError('Cole o código do treino antes de importar.');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const workout = await importWorkoutFromCode(workoutCode);
+      setWorkoutCode('');
+      setImportStatus(`Treino "${workout.nome}" importado com sucesso.`);
+      await loadWorkouts(true);
+    } catch (importFailure) {
+      setImportError(
+        importFailure instanceof Error
+          ? importFailure.message
+          : 'Não foi possível importar o treino.',
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -89,6 +119,46 @@ export default function HomeScreen() {
             <View style={styles.countBadge}>
               <Text style={styles.countText}>{String(workouts.length).padStart(2, '0')} TREINOS</Text>
             </View>
+          </View>
+
+          <View style={styles.importCard}>
+            <Text style={styles.importTitle}>Importar treino</Text>
+            <Text style={styles.importDescription}>
+              Cole aqui o código compartilhado de outro treino.
+            </Text>
+            <TextInput
+              accessibilityLabel="Código do treino para importar"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isImporting}
+              multiline
+              onChangeText={(value) => {
+                setWorkoutCode(value);
+                setImportError('');
+                setImportStatus('');
+              }}
+              placeholder="Cole o código do treino"
+              placeholderTextColor="#89928a"
+              style={styles.importInput}
+              textAlignVertical="top"
+              value={workoutCode}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={isImporting}
+              onPress={() => void importWorkout()}
+              style={[styles.importButton, isImporting && styles.importButtonDisabled]}
+            >
+              <Text style={styles.importButtonText}>
+                {isImporting ? 'Importando...' : 'Importar treino'}
+              </Text>
+            </Pressable>
+            {importError ? (
+              <Text accessibilityRole="alert" style={styles.importError}>
+                {importError}
+              </Text>
+            ) : null}
+            {importStatus ? <Text style={styles.importStatus}>{importStatus}</Text> : null}
           </View>
 
           {isLoading ? (
@@ -165,6 +235,15 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16 },
   sectionEyebrow: { color: '#719158', fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   sectionTitle: { color: '#203528', fontSize: 23, fontWeight: '800', letterSpacing: -0.5, marginTop: 5 },
+  importCard: { padding: 15, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e8ede5', marginBottom: 16 },
+  importTitle: { color: '#24392a', fontSize: 14, fontWeight: '800' },
+  importDescription: { color: '#778378', fontSize: 12, lineHeight: 18, marginTop: 5 },
+  importInput: { minHeight: 76, maxHeight: 140, padding: 11, backgroundColor: '#f8faf6', borderWidth: 1, borderColor: '#dfe5da', borderRadius: 9, color: '#273a2c', fontSize: 12, marginTop: 11 },
+  importButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#243329', borderRadius: 9, marginTop: 10 },
+  importButtonDisabled: { opacity: 0.6 },
+  importButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  importError: { color: '#a33d32', fontSize: 12, marginTop: 9 },
+  importStatus: { color: '#587d3e', fontSize: 12, marginTop: 9 },
   countBadge: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: '#eaf0e5' },
   countText: { color: '#648049', fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
   createWorkoutButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9, backgroundColor: '#243329' },

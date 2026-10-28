@@ -1,8 +1,10 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import {
   AppState,
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -14,6 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  createWorkoutShareCode,
+  deleteWorkout,
   getWorkout,
   updateWorkoutExerciseWeight,
   type Workout,
@@ -47,6 +51,10 @@ export default function WorkoutDetailsScreen() {
   const [weightDraft, setWeightDraft] = useState('');
   const [weightError, setWeightError] = useState('');
   const [isSavingWeight, setIsSavingWeight] = useState(false);
+  const [shareStatus, setShareStatus] = useState('');
+  const [shareError, setShareError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const accumulatedRestMs = useRef(0);
   const restStartedAt = useRef<number | null>(null);
 
@@ -162,6 +170,64 @@ export default function WorkoutDetailsScreen() {
     }
   }
 
+  async function exportWorkout() {
+    if (!workout) {
+      return;
+    }
+
+    setShareStatus('');
+    setShareError('');
+    try {
+      await Clipboard.setStringAsync(createWorkoutShareCode(workout));
+      setShareStatus('Código do treino copiado para a área de transferência.');
+    } catch (exportError) {
+      setShareError(
+        exportError instanceof Error
+          ? exportError.message
+          : 'Não foi possível copiar o código do treino.',
+      );
+    }
+  }
+
+  function confirmDeleteWorkout() {
+    if (!workout || isDeleting) {
+      return;
+    }
+
+    Alert.alert(
+      'Excluir treino',
+      `Tem certeza que deseja excluir "${workout.nome}"? Esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => void removeWorkout(),
+        },
+      ],
+    );
+  }
+
+  async function removeWorkout() {
+    if (!id) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteWorkout(id);
+      router.replace('/');
+    } catch (deleteFailure) {
+      setDeleteError(
+        deleteFailure instanceof Error
+          ? deleteFailure.message
+          : 'Não foi possível excluir o treino.',
+      );
+      setIsDeleting(false);
+    }
+  }
+
   if (workoutProgress.isRestoring) {
     return (
       <View style={styles.loadingScreen}>
@@ -206,12 +272,35 @@ export default function WorkoutDetailsScreen() {
           <>
             <View style={styles.topActions}>
               <Pressable
+                accessibilityRole="button"
+                onPress={() => void exportWorkout()}
+                style={styles.shareButton}
+              >
+                <Text style={styles.shareText}>Exportar treino</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/treinos/[id]/editar', params: { id } })}
                 style={styles.editButton}
               >
                 <Text style={styles.editText}>Editar treino</Text>
               </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isDeleting}
+                onPress={confirmDeleteWorkout}
+                style={[styles.deleteButton, isDeleting && styles.deleteButtonDisabled]}
+              >
+                <Text style={styles.deleteText}>{isDeleting ? 'Excluindo...' : 'Excluir'}</Text>
+              </Pressable>
             </View>
+            {deleteError ? (
+              <Text accessibilityRole="alert" style={styles.deleteError}>
+                {deleteError}
+              </Text>
+            ) : null}
+            {shareStatus ? <Text style={styles.shareStatus}>{shareStatus}</Text> : null}
+            {shareError ? <Text accessibilityRole="alert" style={styles.videoError}>{shareError}</Text> : null}
             <View style={styles.titleBlock}>
               <Text style={styles.eyebrow}>DETALHES DO TREINO</Text>
               <Text style={styles.title}>{workout.nome}</Text>
@@ -432,7 +521,14 @@ const styles = StyleSheet.create({
   brandLetter: { color: '#17311e', fontSize: 19, fontWeight: '900' },
   brandName: { color: '#183523', fontSize: 20, fontWeight: '800', letterSpacing: -1 },
   loader: { marginTop: 80 },
-  topActions: { alignItems: 'flex-end', marginTop: 8 },
+  topActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginTop: 8 },
+  shareButton: { paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#eff6e8', borderRadius: 9 },
+  shareText: { color: '#587d3e', fontSize: 11, fontWeight: '800' },
+  shareStatus: { color: '#587d3e', fontSize: 11, textAlign: 'right', marginTop: 7 },
+  deleteButton: { paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#c93636', borderRadius: 9 },
+  deleteButtonDisabled: { opacity: 0.6 },
+  deleteText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  deleteError: { color: '#a33d32', fontSize: 12, textAlign: 'right', marginTop: 7 },
   editButton: { paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#243329', borderRadius: 9 },
   editText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   titleBlock: { marginTop: 22, marginBottom: 27 },

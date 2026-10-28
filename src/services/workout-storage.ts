@@ -3,6 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { exercicios } from '@/constants/exercicios';
 
 const WORKOUTS_KEY = 'evolift.workouts';
+const WORKOUT_SHARE_PREFIX = 'EVOLIFT:';
+
+type WorkoutSharePayload = {
+  format: 'evolift-workout';
+  version: 1;
+  workout: {
+    nome: string;
+    exercicios: WorkoutInput['exercicios'];
+  };
+};
 
 export type WorkoutExercise = {
   exercicioId: number;
@@ -87,6 +97,16 @@ export async function updateWorkout(workoutId: string, input: WorkoutInput): Pro
   return workout;
 }
 
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  const workouts = await listWorkouts();
+  const workoutIndex = workouts.findIndex((item) => String(item.id) === workoutId);
+  if (workoutIndex < 0) {
+    throw new Error('O treino solicitado não foi encontrado.');
+  }
+
+  await saveWorkouts(workouts.filter((_, index) => index !== workoutIndex));
+}
+
 export async function updateWorkoutExerciseWeight(
   workoutId: string,
   exerciseIndex: number,
@@ -117,6 +137,49 @@ export async function updateWorkoutExerciseWeight(
   updatedWorkouts[workoutIndex] = updatedWorkout;
   await saveWorkouts(updatedWorkouts);
   return updatedWorkout;
+}
+
+export function createWorkoutShareCode(workout: Workout): string {
+  const payload: WorkoutSharePayload = {
+    format: 'evolift-workout',
+    version: 1,
+    workout: {
+      nome: workout.nome,
+      exercicios: workout.exercicios.map(
+        ({ exercicioId, posicao, quantidadeSeries, quantidadeExecucoes, peso }) => ({
+          exercicioId,
+          posicao,
+          quantidadeSeries,
+          quantidadeExecucoes,
+          peso,
+        }),
+      ),
+    },
+  };
+  return `${WORKOUT_SHARE_PREFIX}${JSON.stringify(payload)}`;
+}
+
+export async function importWorkoutFromCode(code: string): Promise<Workout> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode.startsWith(WORKOUT_SHARE_PREFIX)) {
+    throw new Error('Código inválido. Confira se copiou o código completo do treino.');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmedCode.slice(WORKOUT_SHARE_PREFIX.length));
+  } catch {
+    throw new Error('O código do treino está corrompido ou incompleto.');
+  }
+
+  if (!isWorkoutSharePayload(parsed)) {
+    throw new Error('O código não contém um treino válido ou usa uma versão incompatível.');
+  }
+
+  return createWorkout({
+    nome: parsed.workout.nome.trim(),
+    exercicios: parsed.workout.exercicios,
+  });
 }
 
 function buildWorkout(input: WorkoutInput, id: number): Workout {
@@ -193,4 +256,47 @@ function isValidWeight(value: unknown): value is number | null {
     value === null ||
     (typeof value === 'number' && Number.isFinite(value) && value >= 0)
   );
+}
+
+function isWorkoutSharePayload(value: unknown): value is WorkoutSharePayload {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('format' in value) ||
+    value.format !== 'evolift-workout' ||
+    !('version' in value) ||
+    value.version !== 1 ||
+    !('workout' in value) ||
+    typeof value.workout !== 'object' ||
+    value.workout === null ||
+    !('nome' in value.workout) ||
+    typeof value.workout.nome !== 'string' ||
+    value.workout.nome.trim().length === 0 ||
+    value.workout.nome.trim().length > 100 ||
+    !('exercicios' in value.workout) ||
+    !Array.isArray(value.workout.exercicios) ||
+    value.workout.exercicios.length === 0
+  ) {
+    return false;
+  }
+
+  return value.workout.exercicios.every(
+    (exercise: unknown) =>
+      typeof exercise === 'object' &&
+      exercise !== null &&
+      'exercicioId' in exercise &&
+      isPositiveSafeInteger(exercise.exercicioId) &&
+      'posicao' in exercise &&
+      isPositiveSafeInteger(exercise.posicao) &&
+      'quantidadeSeries' in exercise &&
+      isPositiveSafeInteger(exercise.quantidadeSeries) &&
+      'quantidadeExecucoes' in exercise &&
+      isPositiveSafeInteger(exercise.quantidadeExecucoes) &&
+      'peso' in exercise &&
+      isValidWeight(exercise.peso),
+  );
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && typeof value === 'number' && value > 0;
 }
