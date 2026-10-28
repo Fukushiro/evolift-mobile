@@ -23,7 +23,7 @@ O catálogo de exercícios é editado diretamente em `src/constants/exercicios.t
 
 ## AdMob
 
-Os perfis `development` e `preview` usam anúncios de teste do Google. Para produção, cadastre no ambiente `production` do projeto EAS os quatro IDs da sua conta AdMob:
+O perfil `development` usa anúncios de teste do Google. Os perfis `preview` e `production` usam os IDs reais do AdMob configurados nos respectivos ambientes do EAS. Enquanto o consentimento é verificado ou o banner não pode ser carregado, o app mantém um espaço reservado visível no rodapé. Não clique nos anúncios reais durante testes; use o perfil `development` para testar com anúncios de teste.
 
 - `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID`
 - `EXPO_PUBLIC_ADMOB_IOS_APP_ID`
@@ -34,7 +34,7 @@ Esses IDs são públicos e devem ser configurados como variáveis `EXPO_PUBLIC_`
 
 O consentimento UMP é coletado antes da inicialização do SDK. Configure as mensagens de privacidade e a política de privacidade na conta AdMob. Alterações nos App IDs exigem um novo build nativo.
 
-O SDK do AdMob não funciona no Expo Go. Para desenvolvimento, use um development build. Para publicar Android, gere com `npx eas-cli build --profile production --platform android`; para iOS, use `npx eas-cli build --profile production --platform ios`. Os dados dos treinos continuam locais; somente os anúncios fazem solicitações externas.
+O app pode ser aberto no celular com `npx expo start` e Expo Go, mas o Expo Go não inclui o módulo nativo do AdMob; nesse caso, o rodapé informa que os anúncios precisam de um APK development. Para testar anúncios de teste, instale o development build e inicie o servidor com `npx expo start --dev-client`. Para publicar Android, gere com `npx eas-cli build --profile production --platform android`; para iOS, use `npx eas-cli build --profile production --platform ios`. Os dados dos treinos continuam locais; somente os anúncios fazem solicitações externas.
 
 ## Verificações
 

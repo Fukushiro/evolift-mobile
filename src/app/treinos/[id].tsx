@@ -242,6 +242,9 @@ export default function WorkoutDetailsScreen() {
                       <Text style={styles.exerciseDetails}>
                         {exercise.quantidadeSeries ?? '—'} séries × {exercise.quantidadeExecucoes ?? '—'} execuções
                       </Text>
+                      {exercise.pesoMaximo !== null ? (
+                        <Text style={styles.exerciseDetails}>Peso máximo: {exercise.pesoMaximo} kg</Text>
+                      ) : null}
                     </View>
                     <View style={styles.seriesRow}>
                       <Text style={styles.seriesProgress}>

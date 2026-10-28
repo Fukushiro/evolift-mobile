@@ -10,6 +10,7 @@ export type WorkoutExercise = {
   posicao: number;
   quantidadeSeries: number;
   quantidadeExecucoes: number;
+  pesoMaximo: number | null;
 };
 
 export type Workout = {
@@ -25,6 +26,7 @@ export type WorkoutInput = {
     posicao: number;
     quantidadeSeries: number;
     quantidadeExecucoes: number;
+    pesoMaximo: number | null;
   }[];
 };
 
@@ -38,7 +40,13 @@ export async function listWorkouts(): Promise<Workout[]> {
   if (!isWorkoutList(parsed)) {
     throw new Error('Os treinos salvos localmente estão em um formato inválido.');
   }
-  return parsed;
+  return parsed.map((workout) => ({
+    ...workout,
+    exercicios: workout.exercicios.map((exercise) => ({
+      ...exercise,
+      pesoMaximo: exercise.pesoMaximo ?? null,
+    })),
+  }));
 }
 
 export async function getWorkout(workoutId: string): Promise<Workout> {
@@ -125,6 +133,11 @@ function isWorkout(value: unknown): value is Workout {
       Number.isSafeInteger(item.quantidadeSeries) &&
       'quantidadeExecucoes' in item &&
       Number.isSafeInteger(item.quantidadeExecucoes) &&
+      (!('pesoMaximo' in item) ||
+        item.pesoMaximo === null ||
+        (typeof item.pesoMaximo === 'number' &&
+          Number.isFinite(item.pesoMaximo) &&
+          item.pesoMaximo >= 0)) &&
       'exercicio' in item &&
       typeof item.exercicio === 'object' &&
       item.exercicio !== null &&
