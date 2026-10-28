@@ -33,7 +33,7 @@ type Selection = {
   exerciseId: string;
   sets: string;
   repetitions: string;
-  maxWeight: string;
+  weight: string;
 };
 
 function selectionFromWorkout(workout: Workout): Selection[] {
@@ -45,7 +45,7 @@ function selectionFromWorkout(workout: Workout): Selection[] {
       exerciseId: String(exercise.exercicioId ?? exercise.exercicio?.id ?? ''),
       sets: String(exercise.quantidadeSeries ?? 3),
       repetitions: String(exercise.quantidadeExecucoes ?? 10),
-      maxWeight: exercise.pesoMaximo == null ? '' : String(exercise.pesoMaximo),
+      weight: exercise.peso == null ? '' : String(exercise.peso),
     }));
 }
 
@@ -60,7 +60,7 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
   const [name, setName] = useState('');
   const exercises = exercicios;
   const [selections, setSelections] = useState<Selection[]>([
-    { key: 'exercise-0', exerciseId: '', sets: '3', repetitions: '10', maxWeight: '' },
+    { key: 'exercise-0', exerciseId: '', sets: '3', repetitions: '10', weight: '' },
   ]);
   const [exercisePickerSelectionKey, setExercisePickerSelectionKey] = useState<string | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState('');
@@ -84,7 +84,7 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
         setSelections(
           selectionFromWorkout(workout).length
             ? selectionFromWorkout(workout)
-            : [{ key: 'exercise-0', exerciseId: '', sets: '3', repetitions: '10', maxWeight: '' }],
+            : [{ key: 'exercise-0', exerciseId: '', sets: '3', repetitions: '10', weight: '' }],
         );
       }
     } catch (loadError) {
@@ -140,10 +140,10 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
       posicao: index + 1,
       quantidadeSeries: Number(selection.sets),
       quantidadeExecucoes: Number(selection.repetitions),
-      pesoMaximo:
-        selection.maxWeight.trim() === ''
+      peso:
+        selection.weight.trim() === ''
           ? null
-          : Number(selection.maxWeight.trim().replace(',', '.')),
+          : Number(selection.weight.trim().replace(',', '.')),
     }));
     if (
       !name.trim() ||
@@ -157,12 +157,12 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
           exercise.quantidadeSeries <= 0 ||
           !Number.isSafeInteger(exercise.quantidadeExecucoes) ||
           exercise.quantidadeExecucoes <= 0 ||
-          (exercise.pesoMaximo !== null &&
-            (!Number.isFinite(exercise.pesoMaximo) || exercise.pesoMaximo < 0)),
+          (exercise.peso !== null &&
+            (!Number.isFinite(exercise.peso) || exercise.peso < 0)),
       )
     ) {
       setError(
-        'Preencha o nome, selecione exercícios com séries e execuções válidas e informe um peso máximo válido em kg quando desejar.',
+        'Preencha o nome, selecione exercícios com séries e execuções válidas e informe um peso válido em kg quando desejar.',
       );
       return;
     }
@@ -200,8 +200,8 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
           <Text style={styles.title}>{isEditing ? 'Editar treino' : 'Novo treino'}</Text>
           <Text style={styles.subtitle}>
             {isEditing
-              ? 'Atualize o nome, a ordem, as séries, as execuções e o peso máximo dos exercícios.'
-              : 'Escolha os exercícios e defina séries, execuções e peso máximo para cada um.'}
+              ? 'Atualize o nome, a ordem, as séries, as execuções e o peso de cada exercício.'
+              : 'Escolha os exercícios e defina séries, execuções e peso para cada um.'}
           </Text>
 
           {isLoading ? (
@@ -229,7 +229,7 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
                   onPress={() =>
                     setSelections((current) => [
                       ...current,
-                      { key: `exercise-${Date.now()}-${current.length}`, exerciseId: '', sets: '3', repetitions: '10', maxWeight: '' },
+                      { key: `exercise-${Date.now()}-${current.length}`, exerciseId: '', sets: '3', repetitions: '10', weight: '' },
                     ])
                   }
                   style={styles.addButton}
@@ -309,16 +309,16 @@ export function WorkoutFormScreen({ workoutId }: WorkoutFormScreenProps) {
                       />
                     </View>
                   </View>
-                  <Text style={[styles.label, styles.maxWeightLabel]}>Peso máximo (kg) · opcional</Text>
+                  <Text style={[styles.label, styles.weightLabel]}>Peso (kg) · opcional</Text>
                   <TextInput
-                    accessibilityLabel={`Peso máximo em quilogramas para o exercício ${index + 1}`}
+                    accessibilityLabel={`Peso em quilogramas para o exercício ${index + 1}`}
                     keyboardType="decimal-pad"
                     maxLength={8}
-                    onChangeText={(value) => updateSelection(index, 'maxWeight', value)}
+                    onChangeText={(value) => updateSelection(index, 'weight', value)}
                     placeholder="Ex.: 80,5"
                     placeholderTextColor="#89928a"
                     style={styles.input}
-                    value={selection.maxWeight}
+                    value={selection.weight}
                   />
                   <Pressable
                     disabled={selections.length === 1}
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   pickerEmpty: { paddingVertical: 24, color: '#778378', fontSize: 13, textAlign: 'center' },
   numberFields: { flexDirection: 'row', gap: 10 },
   numberField: { flex: 1 },
-  maxWeightLabel: { marginTop: 12 },
+  weightLabel: { marginTop: 12 },
   removeButton: { alignSelf: 'flex-end', paddingVertical: 9, paddingHorizontal: 3 },
   removeText: { color: '#a24f44', fontSize: 11, fontWeight: '700' },
   error: { color: '#b53e36', fontSize: 12, lineHeight: 18, marginTop: 8 },

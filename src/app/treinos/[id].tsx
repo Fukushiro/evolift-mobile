@@ -8,11 +8,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getWorkout, type Workout, type WorkoutExercise } from '@/services/workout-storage';
+import {
+  getWorkout,
+  updateWorkoutExerciseWeight,
+  type Workout,
+  type WorkoutExercise,
+} from '@/services/workout-storage';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   changeCompletedSets,
@@ -37,6 +43,10 @@ export default function WorkoutDetailsScreen() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRestRunning, setIsRestRunning] = useState(false);
   const [videoError, setVideoError] = useState('');
+  const [editingWeightIndex, setEditingWeightIndex] = useState<number | null>(null);
+  const [weightDraft, setWeightDraft] = useState('');
+  const [weightError, setWeightError] = useState('');
+  const [isSavingWeight, setIsSavingWeight] = useState(false);
   const accumulatedRestMs = useRef(0);
   const restStartedAt = useRef<number | null>(null);
 
@@ -116,6 +126,39 @@ export default function WorkoutDetailsScreen() {
       await Linking.openURL(videoUrl);
     } catch {
       setVideoError('Não foi possível abrir o vídeo neste dispositivo.');
+    }
+  }
+
+  function startEditingWeight(index: number, peso: number | null) {
+    setEditingWeightIndex(index);
+    setWeightDraft(peso === null ? '' : String(peso));
+    setWeightError('');
+  }
+
+  async function saveExerciseWeight() {
+    if (!workout || !id || editingWeightIndex === null) {
+      return;
+    }
+
+    const trimmedWeight = weightDraft.trim();
+    const peso = trimmedWeight === '' ? null : Number(trimmedWeight.replace(',', '.'));
+    if (peso !== null && (!Number.isFinite(peso) || peso < 0)) {
+      setWeightError('Informe um peso válido em kg ou deixe o campo vazio.');
+      return;
+    }
+
+    setIsSavingWeight(true);
+    setWeightError('');
+    try {
+      const updatedWorkout = await updateWorkoutExerciseWeight(id, editingWeightIndex, peso);
+      setWorkout(updatedWorkout);
+      setEditingWeightIndex(null);
+    } catch (saveError) {
+      setWeightError(
+        saveError instanceof Error ? saveError.message : 'Não foi possível salvar o peso.',
+      );
+    } finally {
+      setIsSavingWeight(false);
     }
   }
 
@@ -242,9 +285,63 @@ export default function WorkoutDetailsScreen() {
                       <Text style={styles.exerciseDetails}>
                         {exercise.quantidadeSeries ?? '—'} séries × {exercise.quantidadeExecucoes ?? '—'} execuções
                       </Text>
-                      {exercise.pesoMaximo !== null ? (
-                        <Text style={styles.exerciseDetails}>Peso máximo: {exercise.pesoMaximo} kg</Text>
-                      ) : null}
+                      {editingWeightIndex === index ? (
+                        <>
+                          <View style={styles.weightEditor}>
+                            <TextInput
+                              accessibilityLabel={`Peso em quilogramas para ${name}`}
+                              editable={!isSavingWeight}
+                              keyboardType="decimal-pad"
+                              maxLength={8}
+                              onChangeText={setWeightDraft}
+                              placeholder="Peso em kg"
+                              placeholderTextColor="#89928a"
+                              style={styles.weightInput}
+                              value={weightDraft}
+                            />
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={isSavingWeight}
+                              onPress={() => void saveExerciseWeight()}
+                              style={[styles.weightSaveButton, isSavingWeight && styles.buttonDisabled]}
+                            >
+                              <Text style={styles.weightSaveText}>
+                                {isSavingWeight ? 'Salvando' : 'Salvar'}
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              accessibilityRole="button"
+                              disabled={isSavingWeight}
+                              onPress={() => {
+                                setEditingWeightIndex(null);
+                                setWeightError('');
+                              }}
+                              style={[styles.weightCancelButton, isSavingWeight && styles.buttonDisabled]}
+                            >
+                              <Text style={styles.weightCancelText}>Cancelar</Text>
+                            </Pressable>
+                          </View>
+                          {weightError ? (
+                            <Text accessibilityRole="alert" style={styles.weightError}>
+                              {weightError}
+                            </Text>
+                          ) : null}
+                        </>
+                      ) : (
+                        <View style={styles.weightRow}>
+                          <Text style={styles.exerciseDetails}>
+                            {exercise.peso !== null ? `Peso: ${exercise.peso} kg` : 'Peso não informado'}
+                          </Text>
+                          <Pressable
+                            accessibilityLabel={`Editar peso de ${name}`}
+                            accessibilityRole="button"
+                            onPress={() => startEditingWeight(index, exercise.peso)}
+                            style={styles.weightEditButton}
+                          >
+                            <Text style={styles.weightEditText}>Editar peso</Text>
+                          </Pressable>
+                        </View>
+                      )}
                     </View>
                     <View style={styles.seriesRow}>
                       <Text style={styles.seriesProgress}>
@@ -360,6 +457,16 @@ const styles = StyleSheet.create({
   exerciseIndex: { color: '#80a55c', fontSize: 11, fontWeight: '800', paddingTop: 2 },
   exerciseName: { flex: 1, color: '#273a2c', fontSize: 15, lineHeight: 20, fontWeight: '800' },
   exerciseDetails: { color: '#778378', fontSize: 12, marginLeft: 27 },
+  weightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  weightEditButton: { paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#eff6e8', borderRadius: 8 },
+  weightEditText: { color: '#587d3e', fontSize: 10, fontWeight: '800' },
+  weightEditor: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  weightInput: { flex: 1, minWidth: 70, minHeight: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: '#d7dfcd', borderRadius: 8, color: '#273a2c', fontSize: 13 },
+  weightSaveButton: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 11, backgroundColor: '#243329', borderRadius: 8 },
+  weightSaveText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  weightCancelButton: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 9, backgroundColor: '#f0f3eb', borderRadius: 8 },
+  weightCancelText: { color: '#465a3b', fontSize: 10, fontWeight: '800' },
+  weightError: { color: '#a33d32', fontSize: 11, marginLeft: 27 },
   seriesRow: { borderTopWidth: 1, borderTopColor: '#eef0ea', marginTop: 13, paddingTop: 12, gap: 12 },
   seriesProgress: { color: '#465a3b', fontSize: 12, fontWeight: '700' },
   seriesActions: { flexDirection: 'row', gap: 8 },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, TurboModuleRegistry, View } from "react-native";
 import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -15,7 +15,16 @@ const productionAdUnitId =
 const useTestAds =
   __DEV__ || process.env.EXPO_PUBLIC_ADMOB_USE_TEST_ADS === "true";
 
-const isExpoGo = Constants.appOwnership === "expo";
+const hasNativeAdsModule =
+  TurboModuleRegistry.get("RNGoogleMobileAdsModule") != null;
+const testBannerId =
+  Platform.OS === "android"
+    ? "ca-app-pub-3940256099942544/9214589741"
+    : "ca-app-pub-3940256099942544/2435281174";
+const isExpoGo =
+  Constants.appOwnership === "expo" ||
+  (Constants.executionEnvironment === "storeClient" &&
+    Constants.expoVersion !== null);
 
 export function AdMobBanner() {
   const [isReady, setIsReady] = useState(false);
@@ -27,7 +36,7 @@ export function AdMobBanner() {
   );
 
   useEffect(() => {
-    if (isExpoGo) {
+    if (isExpoGo || !hasNativeAdsModule) {
       return;
     }
 
@@ -40,7 +49,9 @@ export function AdMobBanner() {
       }
 
       setAdsSdk(ads);
-      const unitId = useTestAds ? ads.TestIds.ADAPTIVE_BANNER : productionAdUnitId;
+      const unitId = useTestAds
+        ? ads.TestIds?.ADAPTIVE_BANNER || testBannerId
+        : productionAdUnitId;
       if (!unitId) {
         setPlaceholderText("ID do banner não configurado");
         return;
@@ -78,6 +89,10 @@ export function AdMobBanner() {
       isMounted = false;
     };
   }, []);
+
+  if (isExpoGo || !hasNativeAdsModule) {
+    return null;
+  }
 
   const BannerAd = adsSdk?.BannerAd;
 

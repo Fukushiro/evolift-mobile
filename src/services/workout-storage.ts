@@ -10,7 +10,7 @@ export type WorkoutExercise = {
   posicao: number;
   quantidadeSeries: number;
   quantidadeExecucoes: number;
-  pesoMaximo: number | null;
+  peso: number | null;
 };
 
 export type Workout = {
@@ -26,8 +26,17 @@ export type WorkoutInput = {
     posicao: number;
     quantidadeSeries: number;
     quantidadeExecucoes: number;
-    pesoMaximo: number | null;
+    peso: number | null;
   }[];
+};
+
+type StoredWorkoutExercise = Omit<WorkoutExercise, 'peso'> & {
+  peso?: number | null;
+  pesoMaximo?: number | null;
+};
+
+type StoredWorkout = Omit<Workout, 'exercicios'> & {
+  exercicios: StoredWorkoutExercise[];
 };
 
 export async function listWorkouts(): Promise<Workout[]> {
@@ -42,9 +51,9 @@ export async function listWorkouts(): Promise<Workout[]> {
   }
   return parsed.map((workout) => ({
     ...workout,
-    exercicios: workout.exercicios.map((exercise) => ({
+    exercicios: workout.exercicios.map(({ pesoMaximo, ...exercise }) => ({
       ...exercise,
-      pesoMaximo: exercise.pesoMaximo ?? null,
+      peso: exercise.peso !== undefined ? exercise.peso : pesoMaximo ?? null,
     })),
   }));
 }
@@ -78,6 +87,38 @@ export async function updateWorkout(workoutId: string, input: WorkoutInput): Pro
   return workout;
 }
 
+export async function updateWorkoutExerciseWeight(
+  workoutId: string,
+  exerciseIndex: number,
+  peso: number | null,
+): Promise<Workout> {
+  if (!Number.isSafeInteger(exerciseIndex) || exerciseIndex < 0 || !isValidWeight(peso)) {
+    throw new Error('O peso informado para o exercício é inválido.');
+  }
+
+  const workouts = await listWorkouts();
+  const workoutIndex = workouts.findIndex((item) => String(item.id) === workoutId);
+  if (workoutIndex < 0) {
+    throw new Error('O treino solicitado não foi encontrado.');
+  }
+
+  const workout = workouts[workoutIndex];
+  if (exerciseIndex >= workout.exercicios.length) {
+    throw new Error('O exercício solicitado não foi encontrado neste treino.');
+  }
+
+  const updatedWorkout: Workout = {
+    ...workout,
+    exercicios: workout.exercicios.map((exercise, index) =>
+      index === exerciseIndex ? { ...exercise, peso } : exercise,
+    ),
+  };
+  const updatedWorkouts = [...workouts];
+  updatedWorkouts[workoutIndex] = updatedWorkout;
+  await saveWorkouts(updatedWorkouts);
+  return updatedWorkout;
+}
+
 function buildWorkout(input: WorkoutInput, id: number): Workout {
   return {
     id,
@@ -103,11 +144,11 @@ async function saveWorkouts(workouts: Workout[]): Promise<void> {
   await AsyncStorage.setItem(WORKOUTS_KEY, JSON.stringify(workouts));
 }
 
-function isWorkoutList(value: unknown): value is Workout[] {
+function isWorkoutList(value: unknown): value is StoredWorkout[] {
   return Array.isArray(value) && value.every(isWorkout);
 }
 
-function isWorkout(value: unknown): value is Workout {
+function isWorkout(value: unknown): value is StoredWorkout {
   if (
     typeof value !== 'object' ||
     value === null ||
@@ -133,11 +174,8 @@ function isWorkout(value: unknown): value is Workout {
       Number.isSafeInteger(item.quantidadeSeries) &&
       'quantidadeExecucoes' in item &&
       Number.isSafeInteger(item.quantidadeExecucoes) &&
-      (!('pesoMaximo' in item) ||
-        item.pesoMaximo === null ||
-        (typeof item.pesoMaximo === 'number' &&
-          Number.isFinite(item.pesoMaximo) &&
-          item.pesoMaximo >= 0)) &&
+      (!('peso' in item) || isValidWeight(item.peso)) &&
+      (!('pesoMaximo' in item) || isValidWeight(item.pesoMaximo)) &&
       'exercicio' in item &&
       typeof item.exercicio === 'object' &&
       item.exercicio !== null &&
@@ -147,5 +185,12 @@ function isWorkout(value: unknown): value is Workout {
       typeof item.exercicio.nome === 'string' &&
       'video' in item.exercicio &&
       typeof item.exercicio.video === 'string',
+  );
+}
+
+function isValidWeight(value: unknown): value is number | null {
+  return (
+    value === null ||
+    (typeof value === 'number' && Number.isFinite(value) && value >= 0)
   );
 }

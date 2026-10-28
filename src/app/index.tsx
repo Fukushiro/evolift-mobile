@@ -123,7 +123,7 @@ export default function HomeScreen() {
                   {workout.exercicios.map((exercise, exerciseIndex) => (
                     <Text key={`${exercise.exercicioId}-${exerciseIndex}`} style={styles.exerciseItem}>
                       {exercise.exercicio.nome} · {exercise.quantidadeSeries} séries × {exercise.quantidadeExecucoes} execuções
-                      {exercise.pesoMaximo !== null ? ` · até ${exercise.pesoMaximo} kg` : ''}
+                      {exercise.peso !== null ? ` · ${exercise.peso} kg` : ''}
                     </Text>
                   ))}
                 </View>
