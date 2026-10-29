@@ -8,6 +8,8 @@ Aplicativo de treinos feito com Expo, React Native e Expo Router. O app funciona
 - Catálogo estático de exercícios em [`src/constants/exercicios.ts`](./src/constants/exercicios.ts), com ID, nome e vídeo.
 - Detalhes do treino com registro de séries concluídas, cronômetro de descanso, acesso aos vídeos e limpeza do progresso.
 - Restauração dos treinos e do progresso ao reabrir o aplicativo.
+- Exportação de backup com todos os treinos e progresso das séries, copiado para a área de transferência.
+- Importação de backup completo com confirmação, substituindo treinos e progresso locais.
 - Banner adaptativo do AdMob fixo no rodapé das telas nativas.
 
 ## Executar
@@ -20,6 +22,8 @@ npx expo start
 ```
 
 O catálogo de exercícios é editado diretamente em `src/constants/exercicios.ts`. Os treinos que cada pessoa cria e o progresso registrado não são enviados a nenhum servidor; eles permanecem apenas no armazenamento local do aplicativo.
+
+Na tela inicial, toque em **Exportar todos os dados** para copiar um código de backup com todos os treinos, configurações dos exercícios e progresso das séries. Para restaurá-lo, cole o código no campo de importação de backup completo. A confirmação substitui os treinos e o progresso atualmente salvos no dispositivo.
 
 ## AdMob
 

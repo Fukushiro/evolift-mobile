@@ -8,8 +8,7 @@ import {
   type CompletedSetsByWorkout,
 } from '@/store/workout-progress-slice';
 import { store } from '@/store/store';
-
-const WORKOUT_PROGRESS_KEY = 'evolift.workout-progress';
+import { WORKOUT_PROGRESS_STORAGE_KEY } from '@/services/workout-storage';
 
 function LocalDataBootstrap({ children }: PropsWithChildren) {
   useEffect(() => {
@@ -18,13 +17,13 @@ function LocalDataBootstrap({ children }: PropsWithChildren) {
     async function restoreSavedData() {
       let completedByWorkout: CompletedSetsByWorkout = {};
       try {
-        const savedProgress = await AsyncStorage.getItem(WORKOUT_PROGRESS_KEY);
+        const savedProgress = await AsyncStorage.getItem(WORKOUT_PROGRESS_STORAGE_KEY);
         if (savedProgress) {
           const parsed: unknown = JSON.parse(savedProgress);
           if (isStoredWorkoutProgress(parsed)) {
             completedByWorkout = parsed;
           } else {
-            await AsyncStorage.removeItem(WORKOUT_PROGRESS_KEY);
+            await AsyncStorage.removeItem(WORKOUT_PROGRESS_STORAGE_KEY);
           }
         }
       } catch (error) {
@@ -44,7 +43,9 @@ function LocalDataBootstrap({ children }: PropsWithChildren) {
           previousProgress = progress;
           const serializedProgress = JSON.stringify(progress);
           writeQueue = writeQueue
-            .then(() => AsyncStorage.setItem(WORKOUT_PROGRESS_KEY, serializedProgress))
+            .then(() =>
+              AsyncStorage.setItem(WORKOUT_PROGRESS_STORAGE_KEY, serializedProgress),
+            )
             .catch((error: unknown) => {
               console.error('Falha ao salvar as séries dos treinos.', error);
             });

@@ -1,7 +1,9 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,9 +14,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { importWorkoutFromCode, listWorkouts, type Workout } from '@/services/workout-storage';
+import {
+  createAppBackupCode,
+  importWorkoutFromCode,
+  listWorkouts,
+  restoreAppBackupFromCode,
+  type Workout,
+} from '@/services/workout-storage';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { restoreWorkoutProgress } from '@/store/workout-progress-slice';
 
 export default function HomeScreen() {
+  const dispatch = useAppDispatch();
+  const workoutProgress = useAppSelector((state) => state.workoutProgress);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -23,6 +35,14 @@ export default function HomeScreen() {
   const [importError, setImportError] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [backupStatus, setBackupStatus] = useState('');
+  const [backupError, setBackupError] = useState('');
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+  const [backupImportCode, setBackupImportCode] = useState('');
+  const [backupImportError, setBackupImportError] = useState('');
+  const [backupImportStatus, setBackupImportStatus] = useState('');
+  const [isConfirmingBackupImport, setIsConfirmingBackupImport] = useState(false);
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
 
   const loadWorkouts = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -78,6 +98,55 @@ export default function HomeScreen() {
     }
   }
 
+  async function exportAppBackup() {
+    setBackupStatus('');
+    setBackupError('');
+    setIsExportingBackup(true);
+    try {
+      const savedWorkouts = await listWorkouts();
+      const backupCode = createAppBackupCode(
+        savedWorkouts,
+        workoutProgress.completedByWorkout,
+      );
+      await Clipboard.setStringAsync(backupCode);
+      setBackupStatus(
+        `Backup de ${savedWorkouts.length} ${savedWorkouts.length === 1 ? 'treino copiado' : 'treinos copiados'} com o progresso das séries.`,
+      );
+    } catch (backupFailure) {
+      setBackupError(
+        backupFailure instanceof Error
+          ? backupFailure.message
+          : 'Não foi possível exportar os dados do app.',
+      );
+    } finally {
+      setIsExportingBackup(false);
+    }
+  }
+
+  async function restoreAppBackup() {
+    setBackupImportError('');
+    setBackupImportStatus('');
+    setIsRestoringBackup(true);
+    try {
+      const restored = await restoreAppBackupFromCode(backupImportCode);
+      dispatch(restoreWorkoutProgress(restored.completedByWorkout));
+      setBackupImportCode('');
+      setIsConfirmingBackupImport(false);
+      setBackupImportStatus(
+        `Backup restaurado: ${restored.workouts.length} ${restored.workouts.length === 1 ? 'treino importado' : 'treinos importados'} e progresso das séries recuperado.`,
+      );
+      await loadWorkouts(true);
+    } catch (restoreFailure) {
+      setBackupImportError(
+        restoreFailure instanceof Error
+          ? restoreFailure.message
+          : 'Não foi possível restaurar o backup.',
+      );
+    } finally {
+      setIsRestoringBackup(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -108,6 +177,85 @@ export default function HomeScreen() {
           </Text>
           <View style={styles.progressLine}><View style={styles.progressFill} /></View>
           <Text style={styles.progressCaption}>EVOLUIR É UM HÁBITO</Text>
+        </View>
+
+        <View style={styles.backupCard}>
+          <View style={styles.backupCopy}>
+            <Text style={styles.backupTitle}>Backup dos dados do app</Text>
+            <Text style={styles.backupDescription}>
+              Exporte ou restaure todos os treinos e o progresso das séries.
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isExportingBackup || workoutProgress.isRestoring}
+            onPress={() => void exportAppBackup()}
+            style={[
+              styles.backupButton,
+              (isExportingBackup ||
+                isRestoringBackup ||
+                workoutProgress.isRestoring) &&
+                styles.importButtonDisabled,
+            ]}
+          >
+            <Text style={styles.backupButtonText}>
+              {isExportingBackup ? 'Exportando...' : 'Exportar todos os dados'}
+            </Text>
+          </Pressable>
+          <TextInput
+            accessibilityLabel="Código de backup completo para importar"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isRestoringBackup}
+            multiline
+            onChangeText={(value) => {
+              setBackupImportCode(value);
+              setBackupImportError('');
+              setBackupImportStatus('');
+            }}
+            placeholder="Cole o código exportado do app"
+            placeholderTextColor="#89928a"
+            style={styles.importInput}
+            textAlignVertical="top"
+            value={backupImportCode}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={
+              isRestoringBackup ||
+              workoutProgress.isRestoring ||
+              !backupImportCode.trim()
+            }
+            onPress={() => {
+              setBackupImportError('');
+              setIsConfirmingBackupImport(true);
+            }}
+            style={[
+              styles.backupImportButton,
+              (isRestoringBackup ||
+                workoutProgress.isRestoring ||
+                !backupImportCode.trim()) &&
+                styles.importButtonDisabled,
+            ]}
+          >
+            <Text style={styles.backupImportButtonText}>
+              {isRestoringBackup ? 'Restaurando...' : 'Importar backup completo'}
+            </Text>
+          </Pressable>
+          {backupError ? (
+            <Text accessibilityRole="alert" style={styles.importError}>
+              {backupError}
+            </Text>
+          ) : null}
+          {backupStatus ? <Text style={styles.importStatus}>{backupStatus}</Text> : null}
+          {backupImportError ? (
+            <Text accessibilityRole="alert" style={styles.importError}>
+              {backupImportError}
+            </Text>
+          ) : null}
+          {backupImportStatus ? (
+            <Text style={styles.importStatus}>{backupImportStatus}</Text>
+          ) : null}
         </View>
 
         <View style={styles.workoutsSection}>
@@ -212,6 +360,54 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.footer}>© 2026 EVOLIFT · FEITO PARA IR MAIS LONGE</Text>
       </ScrollView>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isRestoringBackup) {
+            setIsConfirmingBackupImport(false);
+          }
+        }}
+        transparent
+        visible={isConfirmingBackupImport}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Substituir dados do app?</Text>
+            <Text style={styles.confirmDescription}>
+              A importação substituirá todos os treinos e o progresso salvos neste
+              dispositivo. Essa ação não pode ser desfeita.
+            </Text>
+            {backupImportError ? (
+              <Text accessibilityRole="alert" style={styles.importError}>
+                {backupImportError}
+              </Text>
+            ) : null}
+            <View style={styles.confirmActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isRestoringBackup}
+                onPress={() => {
+                  setIsConfirmingBackupImport(false);
+                  setBackupImportError('');
+                }}
+                style={[styles.confirmCancelButton, isRestoringBackup && styles.importButtonDisabled]}
+              >
+                <Text style={styles.confirmCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isRestoringBackup}
+                onPress={() => void restoreAppBackup()}
+                style={[styles.confirmRestoreButton, isRestoringBackup && styles.importButtonDisabled]}
+              >
+                <Text style={styles.confirmRestoreText}>
+                  {isRestoringBackup ? 'Restaurando...' : 'Substituir e importar'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -231,6 +427,23 @@ const styles = StyleSheet.create({
   progressLine: { height: 3, backgroundColor: '#3b5541', marginTop: 26, borderRadius: 2 },
   progressFill: { height: 3, width: '32%', backgroundColor: '#b9fa6a', borderRadius: 2 },
   progressCaption: { color: '#92a694', fontSize: 9, fontWeight: '800', letterSpacing: 1.6, marginTop: 11 },
+  backupCard: { padding: 15, backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e8ede5', marginTop: 14 },
+  backupCopy: { gap: 5 },
+  backupTitle: { color: '#24392a', fontSize: 14, fontWeight: '800' },
+  backupDescription: { color: '#778378', fontSize: 12, lineHeight: 18 },
+  backupButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#243329', borderRadius: 9, marginTop: 11 },
+  backupButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  backupImportButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eff6e8', borderRadius: 9, marginTop: 9 },
+  backupImportButtonText: { color: '#587d3e', fontSize: 12, fontWeight: '800' },
+  confirmBackdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
+  confirmCard: { padding: 20, backgroundColor: '#fff', borderRadius: 16 },
+  confirmTitle: { color: '#24392a', fontSize: 18, fontWeight: '800' },
+  confirmDescription: { color: '#667367', fontSize: 13, lineHeight: 20, marginTop: 10 },
+  confirmActions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginTop: 20 },
+  confirmCancelButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 13, backgroundColor: '#f0f3eb', borderRadius: 9 },
+  confirmCancelText: { color: '#465a3b', fontSize: 12, fontWeight: '800' },
+  confirmRestoreButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 13, backgroundColor: '#c93636', borderRadius: 9 },
+  confirmRestoreText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   workoutsSection: { marginTop: 30 },
   sectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16 },
   sectionEyebrow: { color: '#719158', fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
