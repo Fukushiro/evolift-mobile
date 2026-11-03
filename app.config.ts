@@ -41,8 +41,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-build-properties',
       {
         android: {
-          enableMinifyInReleaseBuilds: false,
-          extraProguardRules: '-keep class com.google.android.gms.internal.consent_sdk.** { *; }',
+          enableMinifyInReleaseBuilds: true,
+          extraProguardRules: [
+            '-keep class com.google.android.gms.internal.consent_sdk.** { *; }',
+            '-keep class androidx.work.impl.WorkDatabase_Impl { *; }',
+          ].join('\n'),
         },
       },
     ],
