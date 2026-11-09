@@ -243,7 +243,10 @@ export default function WorkoutDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        stickyHeaderIndices={!isLoading && !error && workout ? [1] : []}
+      >
         <View style={styles.header}>
           <Pressable
             onPress={() => router.replace('/')}
@@ -257,6 +260,37 @@ export default function WorkoutDetailsScreen() {
             <Text style={styles.brandName}>evolift</Text>
           </View>
         </View>
+
+        {!isLoading && !error && workout ? (
+          <View style={styles.restCard}>
+            <View>
+              <Text style={styles.restLabel}>DESCANSO</Text>
+              <Text style={styles.restTime}>
+                {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:
+                {String(elapsedSeconds % 60).padStart(2, '0')}
+              </Text>
+            </View>
+            <View style={styles.restActions}>
+              <Pressable onPress={toggleRestTimer} style={styles.restStartButton}>
+                <Text style={styles.restStartText}>
+                  {isRestRunning ? 'Pausar' : elapsedSeconds > 0 ? 'Continuar' : 'Iniciar'}
+                </Text>
+              </Pressable>
+              <Pressable
+                disabled={elapsedSeconds === 0 && !isRestRunning}
+                onPress={() => {
+                  setIsRestRunning(false);
+                  restStartedAt.current = null;
+                  accumulatedRestMs.current = 0;
+                  setElapsedSeconds(0);
+                }}
+                style={[styles.restResetButton, elapsedSeconds === 0 && !isRestRunning && styles.buttonDisabled]}
+              >
+                <Text style={styles.restResetText}>Zerar</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {isLoading ? (
           <ActivityIndicator color="#659a3c" size="large" style={styles.loader} />
@@ -328,35 +362,6 @@ export default function WorkoutDetailsScreen() {
                   Limpar séries
                 </Text>
               </Pressable>
-            </View>
-
-            <View style={styles.restCard}>
-              <View>
-                <Text style={styles.restLabel}>DESCANSO</Text>
-                <Text style={styles.restTime}>
-                  {String(Math.floor(elapsedSeconds / 60)).padStart(2, '0')}:
-                  {String(elapsedSeconds % 60).padStart(2, '0')}
-                </Text>
-              </View>
-              <View style={styles.restActions}>
-                <Pressable onPress={toggleRestTimer} style={styles.restStartButton}>
-                  <Text style={styles.restStartText}>
-                    {isRestRunning ? 'Pausar' : elapsedSeconds > 0 ? 'Continuar' : 'Iniciar'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  disabled={elapsedSeconds === 0 && !isRestRunning}
-                  onPress={() => {
-                    setIsRestRunning(false);
-                    restStartedAt.current = null;
-                    accumulatedRestMs.current = 0;
-                    setElapsedSeconds(0);
-                  }}
-                  style={[styles.restResetButton, elapsedSeconds === 0 && !isRestRunning && styles.buttonDisabled]}
-                >
-                  <Text style={styles.restResetText}>Zerar</Text>
-                </Pressable>
-              </View>
             </View>
 
             {videoError ? <Text accessibilityRole="alert" style={styles.videoError}>{videoError}</Text> : null}
